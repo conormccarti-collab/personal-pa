@@ -1,0 +1,29 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/morning-brief",
+      "schedule": "0 8 * * *",
+      "comment": "Daily morning brief — 8:00 AM every day"
+    },
+    {
+      "path": "/api/cron/asana-sync",
+      "schedule": "0 */3 * * *",
+      "comment": "Asana sync + auto-categorise + shoot proposals — every 3 hours"
+    },
+    {
+      "path": "/api/cron/shoot-prep",
+      "schedule": "0 7 * * *",
+      "comment": "Shoot day prep notification — 7:00 AM every day (fires before morning brief)"
+    },
+    {
+      "path": "/api/cron/rollover",
+      "schedule": "30 18 * * *",
+      "comment": "End-of-day rollover prompt — 6:30 PM every day"
+    },
+    {
+      "path": "/api/cron/weekly-review",
+      "schedule": "0 17 * * 5",
+      "comment": "Weekly review — 5:00 PM every Friday"
+    }
+  ]
+}
