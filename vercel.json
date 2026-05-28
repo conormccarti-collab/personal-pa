@@ -7,8 +7,8 @@
     },
     {
       "path": "/api/cron/asana-sync",
-      "schedule": "0 */3 * * *",
-      "comment": "Asana sync + auto-categorise + shoot proposals — every 3 hours"
+      "schedule": "0 9 * * *",
+      "comment": "Asana sync + auto-categorise + shoot proposals — 9:00 AM every day"
     },
     {
       "path": "/api/cron/shoot-prep",
