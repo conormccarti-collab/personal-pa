@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useToast } from '@/components/ui/ToastProvider'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +32,7 @@ const UNSORTED = '__unsorted__'
 const DONE = '__done__'
 
 export default function TasksPage() {
+  const { toast } = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -134,9 +136,17 @@ export default function TasksPage() {
 
   const syncFromAsana = async () => {
     setSyncing(true)
-    await fetch('/api/asana/sync', { method: 'POST' })
-    await load()
-    setSyncing(false)
+    try {
+      const res = await fetch('/api/asana/sync', { method: 'POST' })
+      if (!res.ok) throw new Error('Sync failed')
+      const data = await res.json()
+      await load()
+      toast(`Synced ${data.synced ?? ''} tasks from Asana`, 'success')
+    } catch {
+      toast('Asana sync failed — check your token', 'error')
+    } finally {
+      setSyncing(false)
+    }
   }
 
   const pushToAsana = async (taskId: string) => {
@@ -153,21 +163,28 @@ export default function TasksPage() {
 
   const aiSort = async () => {
     const uncategorised = tasks.filter((t) => !t.category && t.status !== 'done')
-    if (!uncategorised.length) return
+    if (!uncategorised.length) { toast('All tasks are already categorised', 'info'); return }
     setSorting(true)
-    const res = await fetch('/api/ai/categorise', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tasks: uncategorised }),
-    })
-    const { assignments } = await res.json()
-    setTasks((prev) =>
-      prev.map((t) => {
-        const match = assignments?.find((a: { id: string; category: string | null }) => a.id === t.id)
-        return match?.category ? { ...t, category: match.category } : t
+    try {
+      const res = await fetch('/api/ai/categorise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: uncategorised }),
       })
-    )
-    setSorting(false)
+      if (!res.ok) throw new Error('AI sort failed')
+      const { assignments } = await res.json()
+      setTasks((prev) =>
+        prev.map((t) => {
+          const match = assignments?.find((a: { id: string; category: string | null }) => a.id === t.id)
+          return match?.category ? { ...t, category: match.category } : t
+        })
+      )
+      toast(`Sorted ${assignments?.length ?? 0} tasks`, 'success')
+    } catch {
+      toast('AI sort failed — try again', 'error')
+    } finally {
+      setSorting(false)
+    }
   }
 
   const updateDueDate = async (taskId: string, due_date: string | null) => {

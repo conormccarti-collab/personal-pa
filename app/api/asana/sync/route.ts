@@ -1,19 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getMyTasks } from '@/lib/asana'
-
-/** Map Asana section name → task category, bypassing AI guesswork */
-function categoryFromText(text: string | null): string | null {
-  if (!text) return null
-  const s = text.toLowerCase()
-  if (s.includes('shoot') || s.includes('filming') || s.includes('photography') || s.includes('recce')) return 'Shoot'
-  if (s.includes('edit') && !s.includes('pre-edit') && !s.includes('pre edit') && !s.includes('review')) return 'Editing'
-  if (s.includes('planning') || s.includes('pre-production') || s.includes('pre production')) return 'Planning & Pre-Production'
-  if (s.includes('pre-edit') || s.includes('pre edit') || s.includes('brief')) return 'Pre-Edit Review'
-  if (s.includes('review')) return 'Review'
-  if (s.includes('idea') || s.includes('ideation')) return 'Ideas'
-  return null
-}
+import { categoryFromText, type CategoryRule } from '@/lib/category'
 
 export async function POST() {
   const workspaceGid = process.env.ASANA_WORKSPACE_GID
@@ -22,7 +10,11 @@ export async function POST() {
   }
 
   const supabase = await createClient()
-  const asanaTasks = await getMyTasks(workspaceGid)
+  const [asanaTasks, rulesRes] = await Promise.all([
+    getMyTasks(workspaceGid),
+    supabase.from('category_rules').select('*').order('sort_order'),
+  ])
+  const userRules: CategoryRule[] = (rulesRes.data ?? []) as CategoryRule[]
 
   // Fetch existing asana_ids so we can update vs insert
   const { data: existing } = await supabase
@@ -37,7 +29,7 @@ export async function POST() {
     // memberships[0] may be "My Tasks" with no named section — find the first one that has a name
     const sectionName = t.memberships?.find((m) => m.section?.name)?.section?.name ?? null
     // Derive category from section name first, then fall back to task title keywords
-    const category = categoryFromText(sectionName) ?? categoryFromText(t.name)
+    const category = categoryFromText(sectionName, userRules) ?? categoryFromText(t.name, userRules)
     const payload = {
       asana_id:          t.gid,
       title:             t.name,

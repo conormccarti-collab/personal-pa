@@ -3,9 +3,11 @@ import { BottomNav } from '@/components/layout/BottomNav'
 import { CaptureBar } from '@/components/capture/CaptureBar'
 import { SearchPalette } from '@/components/layout/SearchPalette'
 import { NotificationBell } from '@/components/layout/NotificationBell'
+import { ToastProvider } from '@/components/ui/ToastProvider'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
+    <ToastProvider>
     <div className="flex min-h-screen">
       {/* Desktop sidebar — always 56px wide; hover expands as overlay */}
       <Sidebar />
@@ -30,5 +32,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Global search palette — Cmd+K */}
       <SearchPalette />
     </div>
+    </ToastProvider>
   )
 }

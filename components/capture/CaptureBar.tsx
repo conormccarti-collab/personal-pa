@@ -117,8 +117,8 @@ export function CaptureBar() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-sm">
-      <div className="mx-auto max-w-4xl px-4 py-3 pl-[calc(3.5rem+1rem)] md:pl-[calc(13rem+2rem)]">
+    <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-sm">
+      <div className="mx-auto max-w-4xl px-4 py-3 md:pl-[calc(13rem+2rem)]">
 
         {/* Feedback line */}
         {lastCapture && (

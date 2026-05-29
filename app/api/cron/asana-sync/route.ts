@@ -3,18 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { verifyCron } from '@/lib/cron'
 import { getMyTasks } from '@/lib/asana'
 import { createTracked } from '@/lib/ai/claude'
-
-function categoryFromText(text: string | null): string | null {
-  if (!text) return null
-  const s = text.toLowerCase()
-  if (s.includes('shoot') || s.includes('filming') || s.includes('photography') || s.includes('recce')) return 'Shoot'
-  if (s.includes('edit') && !s.includes('pre-edit') && !s.includes('pre edit') && !s.includes('review')) return 'Editing'
-  if (s.includes('planning') || s.includes('pre-production') || s.includes('pre production')) return 'Planning & Pre-Production'
-  if (s.includes('pre-edit') || s.includes('pre edit') || s.includes('brief')) return 'Pre-Edit Review'
-  if (s.includes('review')) return 'Review'
-  if (s.includes('idea') || s.includes('ideation')) return 'Ideas'
-  return null
-}
+import { categoryFromText, type CategoryRule } from '@/lib/category'
 
 /**
  * GET /api/cron/asana-sync
@@ -35,7 +24,11 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
 
   // ── 1. Sync Asana tasks ─────────────────────────────────────────────────
-  const asanaTasks = await getMyTasks(workspaceGid)
+  const [asanaTasks, rulesRes] = await Promise.all([
+    getMyTasks(workspaceGid),
+    supabase.from('category_rules').select('*').order('sort_order'),
+  ])
+  const userRules: CategoryRule[] = (rulesRes.data ?? []) as CategoryRule[]
 
   const { data: existing } = await supabase
     .from('tasks')
@@ -52,7 +45,7 @@ export async function GET(req: NextRequest) {
   for (const t of asanaTasks) {
     // Find the first membership that has a named section (memberships[0] may be "My Tasks" with no section)
     const sectionName = t.memberships?.find((m) => m.section?.name)?.section?.name ?? null
-    const category = categoryFromText(sectionName) ?? categoryFromText(t.name)
+    const category = categoryFromText(sectionName, userRules) ?? categoryFromText(t.name, userRules)
     const payload = {
       asana_id:          t.gid,
       title:             t.name,

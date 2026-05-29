@@ -99,6 +99,7 @@ export default function CalendarPage() {
   // Google Calendar events overlay
   const [gcalEvents, setGcalEvents] = useState<CalendarEvent[]>([])
   const [gcalConnected, setGcalConnected] = useState(false)
+  const [gcalError, setGcalError] = useState(false)
   const [showGcal, setShowGcal] = useState(true)
 
   // Publish tasks from Asana
@@ -129,13 +130,19 @@ export default function CalendarPage() {
     Promise.all([
       fetch(`/api/asana/publish-tasks?from=${from}&to=${to}`).then((r) => r.json()),
       fetch('/api/google/status').then((r) => r.json()),
-    ]).then(([publishData, statusData]) => {
+    ]).then(async ([publishData, statusData]) => {
       setPublishTasks(Array.isArray(publishData) ? publishData : [])
       setGcalConnected(statusData.connected)
+      setGcalError(false)
       if (!statusData.connected) return
-      return fetch(`/api/google/calendar?from=${from}&days=${daysDiff}`)
-        .then((r) => r.json())
-        .then((data) => setGcalEvents(data.events ?? []))
+      try {
+        const r = await fetch(`/api/google/calendar?from=${from}&days=${daysDiff}`)
+        const data = await r.json()
+        if (data.error) { setGcalError(true); return }
+        setGcalEvents(data.events ?? [])
+      } catch {
+        setGcalError(true)
+      }
     }).catch(() => {})
   }, [])
 
@@ -267,7 +274,16 @@ export default function CalendarPage() {
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          {gcalConnected && (
+          {gcalConnected && gcalError && (
+            <a
+              href="/api/auth/google"
+              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+              title="Google Calendar failed to load — click to reconnect"
+            >
+              ⚠ Reconnect Google
+            </a>
+          )}
+          {gcalConnected && !gcalError && (
             <button
               onClick={() => setShowGcal((v) => !v)}
               title={showGcal ? 'Hide Google Calendar' : 'Show Google Calendar'}

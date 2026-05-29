@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAccessToken } from '@/lib/google/tokens'
-import { startOfDay, endOfDay, addDays, format } from 'date-fns'
+import { startOfDay, endOfDay, addDays, format, parseISO } from 'date-fns'
 
 export interface CalendarEvent {
   id: string
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const days    = parseInt(req.nextUrl.searchParams.get('days') ?? '7', 10)
   const fromStr = req.nextUrl.searchParams.get('from') // optional YYYY-MM-DD start date
-  const now     = fromStr ? new Date(fromStr) : new Date()
+  const now     = fromStr ? parseISO(fromStr) : new Date()
   const timeMin = startOfDay(now).toISOString()
   const timeMax = endOfDay(addDays(now, days)).toISOString()
 

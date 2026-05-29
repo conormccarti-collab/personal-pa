@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, CheckCircle2 } from 'lucide-react'
+import { Loader2, CheckCircle2, Plus, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import type { Profile } from '@/types'
+import type { CategoryRule } from '@/lib/category'
 
 const fields = [
   { key: 'name',         label: 'Your name',                    placeholder: 'Conor McCarthy',                                                                                          rows: 1 },
@@ -25,18 +27,42 @@ export default function ProfilePage() {
   const [savedKey,  setSavedKey]  = useState<FieldKey | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Category rules
+  const [rules, setRules] = useState<CategoryRule[]>([])
+  const [newKeyword, setNewKeyword] = useState('')
+  const [newCategory, setNewCategory] = useState('')
+  const [addingRule, setAddingRule] = useState(false)
+
   // ── load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    supabase
-      .from('profiles')
-      .select('*')
-      .maybeSingle()                          // won't error on 0 rows
-      .then(({ data, error }) => {
-        if (error) console.error('[ProfilePage] load error:', error)
-        if (data)  setProfile(data as Profile)
-        setLoading(false)
-      })
+    Promise.all([
+      supabase.from('profiles').select('*').maybeSingle(),
+      fetch('/api/category-rules').then((r) => r.json()),
+    ]).then(([profileRes, rulesData]) => {
+      if (profileRes.error) console.error('[ProfilePage] load error:', profileRes.error)
+      if (profileRes.data) setProfile(profileRes.data as Profile)
+      setRules(Array.isArray(rulesData) ? rulesData : [])
+      setLoading(false)
+    })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addRule = async () => {
+    if (!newKeyword.trim() || !newCategory.trim() || addingRule) return
+    setAddingRule(true)
+    const res = await fetch('/api/category-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword: newKeyword.trim(), category: newCategory.trim(), sort_order: rules.length }),
+    })
+    const created = await res.json()
+    if (created.id) { setRules((prev) => [...prev, created]); setNewKeyword(''); setNewCategory('') }
+    setAddingRule(false)
+  }
+
+  const deleteRule = async (id: string) => {
+    setRules((prev) => prev.filter((r) => r.id !== id))
+    await fetch(`/api/category-rules/${id}`, { method: 'DELETE' })
+  }
 
   // ── save a single field on blur ───────────────────────────────────────────
   const saveField = async (key: FieldKey) => {
@@ -88,6 +114,22 @@ export default function ProfilePage() {
         </p>
       </div>
 
+      {/* Google Calendar connection */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Google Calendar</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Connect to show events in the calendar view</p>
+          </div>
+          <a
+            href="/api/auth/google"
+            className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 transition-colors"
+          >
+            Connect / Reconnect
+          </a>
+        </div>
+      </div>
+
       <div className="space-y-6">
         {fields.map(({ key, label, placeholder, rows }) => {
           const isSaving = savingKey === key
@@ -112,6 +154,52 @@ export default function ProfilePage() {
             </div>
           )
         })}
+      </div>
+
+      {/* Category rules */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Category Rules</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            If a task title or Asana section contains a keyword, it gets assigned that category automatically — overrides AI.
+          </p>
+        </div>
+
+        {rules.length > 0 && (
+          <div className="space-y-2">
+            {rules.map((rule) => (
+              <div key={rule.id} className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <span className="flex-1 text-sm">
+                  <span className="font-mono text-accent">{rule.keyword}</span>
+                  <span className="mx-2 text-muted-foreground">→</span>
+                  <span>{rule.category}</span>
+                </span>
+                <button onClick={() => deleteRule(rule.id)} className="text-muted-foreground/40 hover:text-red-400 transition-colors">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            value={newKeyword}
+            onChange={(e) => setNewKeyword(e.target.value)}
+            placeholder="keyword (e.g. drone)"
+            className="flex-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-accent/50"
+          />
+          <input
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addRule()}
+            placeholder="category (e.g. Shoot)"
+            className="flex-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-accent/50"
+          />
+          <Button onClick={addRule} disabled={!newKeyword.trim() || !newCategory.trim() || addingRule} size="sm">
+            {addingRule ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
     </div>
   )
