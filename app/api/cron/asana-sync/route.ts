@@ -4,10 +4,10 @@ import { verifyCron } from '@/lib/cron'
 import { getMyTasks } from '@/lib/asana'
 import { createTracked } from '@/lib/ai/claude'
 
-function categoryFromSection(sectionName: string | null): string | null {
-  if (!sectionName) return null
-  const s = sectionName.toLowerCase()
-  if (s.includes('shoot') || s.includes('filming')) return 'Shoot'
+function categoryFromText(text: string | null): string | null {
+  if (!text) return null
+  const s = text.toLowerCase()
+  if (s.includes('shoot') || s.includes('filming') || s.includes('photography') || s.includes('recce')) return 'Shoot'
   if (s.includes('edit') && !s.includes('pre-edit') && !s.includes('pre edit') && !s.includes('review')) return 'Editing'
   if (s.includes('planning') || s.includes('pre-production') || s.includes('pre production')) return 'Planning & Pre-Production'
   if (s.includes('pre-edit') || s.includes('pre edit') || s.includes('brief')) return 'Pre-Edit Review'
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
   for (const t of asanaTasks) {
     // Find the first membership that has a named section (memberships[0] may be "My Tasks" with no section)
     const sectionName = t.memberships?.find((m) => m.section?.name)?.section?.name ?? null
-    const category = categoryFromSection(sectionName)
+    const category = categoryFromText(sectionName) ?? categoryFromText(t.name)
     const payload = {
       asana_id:          t.gid,
       title:             t.name,
