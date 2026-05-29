@@ -2,6 +2,19 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getMyTasks } from '@/lib/asana'
 
+/** Map Asana section name → task category, bypassing AI guesswork */
+function categoryFromSection(sectionName: string | null): string | null {
+  if (!sectionName) return null
+  const s = sectionName.toLowerCase()
+  if (s.includes('shoot') || s.includes('filming')) return 'Shoot'
+  if (s.includes('edit') && !s.includes('pre-edit') && !s.includes('pre edit') && !s.includes('review')) return 'Editing'
+  if (s.includes('planning') || s.includes('pre-production') || s.includes('pre production')) return 'Planning & Pre-Production'
+  if (s.includes('pre-edit') || s.includes('pre edit') || s.includes('brief')) return 'Pre-Edit Review'
+  if (s.includes('review')) return 'Review'
+  if (s.includes('idea') || s.includes('ideation')) return 'Ideas'
+  return null
+}
+
 export async function POST() {
   const workspaceGid = process.env.ASANA_WORKSPACE_GID
   if (!workspaceGid) {
@@ -21,6 +34,8 @@ export async function POST() {
 
   let synced = 0
   for (const t of asanaTasks) {
+    const sectionName = t.memberships?.[0]?.section?.name ?? null
+    const category = categoryFromSection(sectionName)
     const payload = {
       asana_id:          t.gid,
       title:             t.name,
@@ -30,7 +45,9 @@ export async function POST() {
       priority:          'medium' as const,
       parent_asana_id:   t.parent?.gid   ?? null,
       parent_task_title: t.parent?.name  ?? null,
-      asana_section:     t.memberships?.[0]?.section?.name ?? null,
+      asana_section:     sectionName,
+      // Only set category when we can derive it from the section — don't wipe manual categories
+      ...(category ? { category } : {}),
       updated_at:        new Date().toISOString(),
     }
 
