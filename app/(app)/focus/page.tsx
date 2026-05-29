@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -62,6 +62,14 @@ function TimerRing({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function FocusPage() {
+  return (
+    <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></div>}>
+      <FocusInner />
+    </Suspense>
+  )
+}
+
+function FocusInner() {
   const searchParams = useSearchParams()
   const preloadId = searchParams.get('taskId')
 
