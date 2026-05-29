@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import {
   Sun, Inbox, CheckSquare, ListTodo, Lightbulb,
   Users, UserCircle, Camera, Target, CalendarDays, Search,
+  MessageSquare, CalendarClock,
 } from 'lucide-react'
 
 const sections = [
@@ -14,17 +15,19 @@ const sections = [
     id: 'work',
     label: 'Work',
     items: [
-      { href: '/',       label: 'Today',  icon: Sun },
-      { href: '/tasks',  label: 'Tasks',  icon: CheckSquare },
-      { href: '/focus',  label: 'Focus',  icon: Target },
+      { href: '/',       label: 'Today',   icon: Sun },
+      { href: '/tasks',  label: 'Tasks',   icon: CheckSquare },
+      { href: '/focus',  label: 'Focus',   icon: Target },
+      { href: '/chat',   label: 'Ask PA',  icon: MessageSquare },
     ],
   },
   {
     id: 'plan',
     label: 'Plan',
     items: [
-      { href: '/todo',      label: 'To Do',    icon: ListTodo },
-      { href: '/calendar',  label: 'Calendar', icon: CalendarDays },
+      { href: '/todo',      label: 'To Do',     icon: ListTodo },
+      { href: '/calendar',  label: 'Calendar',  icon: CalendarDays },
+      { href: '/plan',      label: 'Week Plan', icon: CalendarClock },
       { href: '/shoots',    label: 'Shoots',   icon: Camera },
     ],
   },

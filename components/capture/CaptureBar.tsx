@@ -13,7 +13,7 @@ export function CaptureBar() {
   const [mode, setMode] = useState<Mode>('idle')
   const [route, setRoute] = useState<Route>('inbox')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [lastCapture, setLastCapture] = useState<{ text: string; dest: Route } | null>(null)
+  const [lastCapture, setLastCapture] = useState<{ text: string; dest: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,15 +36,13 @@ export function CaptureBar() {
           body: JSON.stringify(body),
         })
 
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}))
-          throw new Error(j.error ?? `Error ${res.status}`)
-        }
-
-        setLastCapture({ text: content, dest: route })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`)
+        const dest = data.routing?.destination ?? (route === 'idea' ? 'Ideas vault' : 'Inbox')
+        setLastCapture({ text: content, dest })
         setText('')
         setMode('idle')
-        setTimeout(() => setLastCapture(null), 3000)
+        setTimeout(() => setLastCapture(null), 4000)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to save')
         setTimeout(() => setError(null), 4000)
@@ -124,7 +122,7 @@ export function CaptureBar() {
         {lastCapture && (
           <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground animate-fade-in">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-            {lastCapture.dest === 'idea' ? 'Saved to Ideas vault' : 'Saved to Inbox'}
+            Routed to {lastCapture.dest}
           </div>
         )}
         {error && (

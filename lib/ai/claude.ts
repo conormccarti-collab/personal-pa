@@ -57,6 +57,12 @@ export async function generateBriefing(context: {
   overdueCount: number
   staleCount: number
   completedThisWeek: number
+  // Enhanced context
+  criticalTask?: { title: string; due_date: string } | null
+  riskSummary?: string
+  teamSummary?: string
+  ideasReadyCount?: number
+  shootPrepAlerts?: string
 }): Promise<string> {
   const intelligenceLines: string[] = []
   if (context.overdueCount > 0)
@@ -69,6 +75,13 @@ export async function generateBriefing(context: {
   const intelligenceSummary = intelligenceLines.length
     ? `Patterns this week: ${intelligenceLines.join('; ')}.`
     : ''
+
+  const extraContext: string[] = []
+  if (context.criticalTask) extraContext.push(`Most critical task: "${context.criticalTask.title}" (due ${context.criticalTask.due_date})`)
+  if (context.riskSummary)  extraContext.push(`Risk flags: ${context.riskSummary}`)
+  if (context.teamSummary)  extraContext.push(`Team: ${context.teamSummary}`)
+  if (context.ideasReadyCount && context.ideasReadyCount > 0) extraContext.push(`${context.ideasReadyCount} idea${context.ideasReadyCount > 1 ? 's' : ''} sitting untouched for 7+ days`)
+  if (context.shootPrepAlerts) extraContext.push(context.shootPrepAlerts)
 
   const message = await createTracked('morning_brief', {
     model: MODEL,
@@ -83,14 +96,11 @@ About me: ${context.profile}
 ${context.aiContext ? `Additional context: ${context.aiContext}` : ''}
 
 Today's tasks (prioritised): ${context.tasks}
-
 Meetings today: ${context.meetings}
-
-Follow-ups pending: ${context.followUps}
-
 ${intelligenceSummary}
+${extraContext.length ? extraContext.join('\n') : ''}
 
-Write 2-3 sentences that feel like a smart PA briefing me for the day. If there are overdue or stale tasks, acknowledge them naturally — don't ignore them. Tell me what actually matters today. No bullet points, no headers — just a clear, human paragraph.`,
+Write 2-3 sentences that feel like a sharp PA briefing me for the day. Lead with what matters most — the critical task, a risk, or a deadline. If the team is overloaded or ideas are collecting dust, mention it. No bullet points, no headers — just a clear, direct paragraph.`,
       },
     ],
   })
@@ -293,6 +303,140 @@ Use the exact ids from the input. If fewer than 3 tasks exist, return all of the
   } catch {
     return []
   }
+}
+
+// ── Feature 3: Smart capture classification ───────────────────────────────────
+
+export async function classifyCapture(content: string): Promise<{
+  type: 'task' | 'idea' | 'reminder' | 'note'
+  title: string
+  suggested_due_date: string | null
+  push_to_asana: boolean
+}> {
+  const message = await createTracked('classify_capture', {
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 200,
+    system: `You classify captured text. Return JSON only — no markdown, no explanation.`,
+    messages: [{
+      role: 'user',
+      content: `Classify this captured text and return JSON.
+
+Text: "${content}"
+
+Rules:
+- task: something actionable with a clear deliverable ("edit the Dubai video", "send contract to client")
+- idea: a creative thought, concept, or vague possibility ("what if we did a series on X")
+- reminder: time-based ("remind me to follow up with Emma on Friday", "check in with client next week")
+- note: reference information, not actionable ("client likes warm grades", "camera settings from today")
+
+For tasks: push_to_asana=true if it sounds like a real project deliverable (not just a personal errand).
+For reminders: extract suggested_due_date as YYYY-MM-DD if a date/day is mentioned, else null.
+Title: concise version of the core action/idea (max 60 chars).
+
+Return: {"type":"task|idea|reminder|note","title":"...","suggested_due_date":null,"push_to_asana":false}`,
+    }],
+  })
+
+  const text = message.content[0].type === 'text' ? message.content[0].text : '{}'
+  try {
+    const match = text.match(/\{[\s\S]*\}/)
+    const parsed = match ? JSON.parse(match[0]) : {}
+    return {
+      type:               parsed.type ?? 'note',
+      title:              parsed.title ?? content.slice(0, 60),
+      suggested_due_date: parsed.suggested_due_date ?? null,
+      push_to_asana:      parsed.push_to_asana ?? false,
+    }
+  } catch {
+    return { type: 'note', title: content.slice(0, 60), suggested_due_date: null, push_to_asana: false }
+  }
+}
+
+// ── Feature 5: Weekly plan generation ────────────────────────────────────────
+
+export interface DayPlan {
+  date: string
+  focus: string
+  tasks: { title: string; estimated_hours: number; why: string }[]
+  notes: string
+}
+
+export interface WeeklyPlanData {
+  monday: DayPlan
+  tuesday: DayPlan
+  wednesday: DayPlan
+  thursday: DayPlan
+  friday: DayPlan
+}
+
+export async function generateWeeklyPlan(context: {
+  weekStart: string
+  weekDays: string[]
+  tasks: string
+  shoots: string
+  calendarEvents: string
+  profile: string
+  aiContext: string
+}): Promise<WeeklyPlanData | null> {
+  const message = await createTracked('weekly_plan', {
+    model: MODEL,
+    max_tokens: 1500,
+    system: `You are a personal assistant building a weekly work plan. Return JSON only — no markdown, no explanation.`,
+    messages: [{
+      role: 'user',
+      content: `Build a day-by-day plan for the week starting ${context.weekStart}.
+
+About me: ${context.profile}
+${context.aiContext ? `Context: ${context.aiContext}` : ''}
+
+Tasks with deadlines: ${context.tasks}
+Shoots this week: ${context.shoots || 'None'}
+Calendar events: ${context.calendarEvents || 'None'}
+Days: ${context.weekDays.join(', ')}
+
+Rules:
+- Don't schedule heavy work on days with shoots or full-day events
+- Front-load urgent/high-priority work to Monday/Tuesday
+- Leave Friday afternoon lighter for reviews and planning
+- Each day: 1 "focus" sentence, 2-4 specific tasks, any notes
+
+Return JSON:
+{
+  "monday":    {"date":"${context.weekDays[0]}","focus":"...","tasks":[{"title":"...","estimated_hours":2,"why":"..."}],"notes":"..."},
+  "tuesday":   {"date":"${context.weekDays[1]}","focus":"...","tasks":[...],"notes":"..."},
+  "wednesday": {"date":"${context.weekDays[2]}","focus":"...","tasks":[...],"notes":"..."},
+  "thursday":  {"date":"${context.weekDays[3]}","focus":"...","tasks":[...],"notes":"..."},
+  "friday":    {"date":"${context.weekDays[4]}","focus":"...","tasks":[...],"notes":"..."}
+}`,
+    }],
+  })
+
+  const text = message.content[0].type === 'text' ? message.content[0].text : ''
+  try {
+    const match = text.match(/\{[\s\S]*\}/)
+    return match ? JSON.parse(match[0]) : null
+  } catch {
+    return null
+  }
+}
+
+// ── Feature 2: Enhanced morning briefing ─────────────────────────────────────
+
+export async function generateChatReply(context: {
+  systemPrompt: string
+  history: { role: 'user' | 'assistant'; content: string }[]
+  message: string
+}): Promise<string> {
+  const message = await createTracked('chat', {
+    model: MODEL,
+    max_tokens: 600,
+    system: context.systemPrompt,
+    messages: [
+      ...context.history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      { role: 'user' as const, content: context.message },
+    ],
+  })
+  return message.content[0].type === 'text' ? message.content[0].text : ''
 }
 
 export async function ocrHandwriting(base64Image: string, mediaType: string): Promise<string> {

@@ -19,6 +19,14 @@
     {
       "path": "/api/cron/weekly-review",
       "schedule": "0 17 * * 5"
+    },
+    {
+      "path": "/api/cron/risk-detection",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-plan",
+      "schedule": "0 8 * * 1"
     }
   ]
 }

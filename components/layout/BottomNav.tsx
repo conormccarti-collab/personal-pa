@@ -6,19 +6,22 @@ import { cn } from '@/lib/utils'
 import {
   Sun, CheckSquare, Target, ListTodo, Lightbulb,
   Camera, Users, UserCircle, Inbox, CalendarDays,
+  MessageSquare, CalendarClock,
 } from 'lucide-react'
 
 const nav = [
   { href: '/',          label: 'Today',    icon: Sun },
   { href: '/tasks',     label: 'Tasks',    icon: CheckSquare },
-  { href: '/focus',     label: 'Focus',    icon: Target },
+  { href: '/chat',      label: 'Ask',      icon: MessageSquare },
   { href: '/todo',      label: 'To Do',    icon: ListTodo },
+  { href: '/plan',      label: 'Plan',     icon: CalendarClock },
   { href: '/calendar',  label: 'Calendar', icon: CalendarDays },
   { href: '/ideas',     label: 'Ideas',    icon: Lightbulb },
   { href: '/shoots',    label: 'Shoots',   icon: Camera },
   { href: '/team',      label: 'Team',     icon: Users },
   { href: '/capture',   label: 'Capture',  icon: Inbox },
   { href: '/profile',   label: 'Me',       icon: UserCircle },
+  { href: '/focus',     label: 'Focus',    icon: Target },
 ]
 
 export function BottomNav() {
