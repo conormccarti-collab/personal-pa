@@ -34,7 +34,8 @@ export async function POST() {
 
   let synced = 0
   for (const t of asanaTasks) {
-    const sectionName = t.memberships?.[0]?.section?.name ?? null
+    // memberships[0] may be "My Tasks" with no named section — find the first one that has a name
+    const sectionName = t.memberships?.find((m) => m.section?.name)?.section?.name ?? null
     const category = categoryFromSection(sectionName)
     const payload = {
       asana_id:          t.gid,

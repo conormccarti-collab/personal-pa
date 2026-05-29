@@ -4,6 +4,18 @@ import { verifyCron } from '@/lib/cron'
 import { getMyTasks } from '@/lib/asana'
 import { createTracked } from '@/lib/ai/claude'
 
+function categoryFromSection(sectionName: string | null): string | null {
+  if (!sectionName) return null
+  const s = sectionName.toLowerCase()
+  if (s.includes('shoot') || s.includes('filming')) return 'Shoot'
+  if (s.includes('edit') && !s.includes('pre-edit') && !s.includes('pre edit') && !s.includes('review')) return 'Editing'
+  if (s.includes('planning') || s.includes('pre-production') || s.includes('pre production')) return 'Planning & Pre-Production'
+  if (s.includes('pre-edit') || s.includes('pre edit') || s.includes('brief')) return 'Pre-Edit Review'
+  if (s.includes('review')) return 'Review'
+  if (s.includes('idea') || s.includes('ideation')) return 'Ideas'
+  return null
+}
+
 /**
  * GET /api/cron/asana-sync
  * Runs every 3 hours. Three jobs in one:
@@ -38,6 +50,9 @@ export async function GET(req: NextRequest) {
   let synced = 0
 
   for (const t of asanaTasks) {
+    // Find the first membership that has a named section (memberships[0] may be "My Tasks" with no section)
+    const sectionName = t.memberships?.find((m) => m.section?.name)?.section?.name ?? null
+    const category = categoryFromSection(sectionName)
     const payload = {
       asana_id:          t.gid,
       title:             t.name,
@@ -47,6 +62,9 @@ export async function GET(req: NextRequest) {
       priority:          'medium' as const,
       parent_asana_id:   t.parent?.gid   ?? null,
       parent_task_title: t.parent?.name  ?? null,
+      asana_section:     sectionName,
+      // Only set category when derivable from section — don't wipe manually-set categories
+      ...(category ? { category } : {}),
       updated_at:        new Date().toISOString(),
     }
 
@@ -58,7 +76,8 @@ export async function GET(req: NextRequest) {
         .insert(payload)
         .select('id')
         .single()
-      if (inserted?.id) newTaskIds.push(inserted.id)
+      // Only queue for AI categorisation if we couldn't derive category from section
+      if (inserted?.id && !category) newTaskIds.push(inserted.id)
     }
     synced++
   }
